@@ -20,20 +20,22 @@ Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope Process
 3. Install Dependencies
 PowerShell
 pip install -r requirements.txt
-How to Run the Program
-To verify the server against the grading client, you must use the following workflow:
 
-Step 1: Ensure the Server is NOT running manually
-The gradebot tool is designed to launch and manage the server process itself.
+
+How to Run the Program
+Step1: Run the program mannually
+Execute the command: "python main.py"
+The server will run on http://127.0.0.1:8080/jwks
 
 Step 2: Run the Gradebot
+Step 1: Download the Gradebot from the test client: https://github.com/jh125486/CSCE3550/releases
+Step 2: Download the correct version of your machine and extract it into the same directory of the main directory
 Execute the following command in your PowerShell terminal:
-
 PowerShell
 .\gradebot.exe project-1 --run "python main.py"
+
 Testing & Coverage
 To view the test coverage of the server after running the tests:
-
 PowerShell
 coverage report
 Note: The project aims for at least 80% test coverage as per rubric requirements.
