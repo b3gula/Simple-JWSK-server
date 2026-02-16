@@ -23,11 +23,11 @@ pip install -r requirements.txt
 
 
 How to Run the Program
-Step1: Run the program mannually
+1. Run the program mannually
 Execute the command: "python main.py"
 The server will run on http://127.0.0.1:8080/jwks
 
-Step 2: Run the Gradebot
+2. Run the Gradebot
 Step 1: Download the Gradebot from the test client: https://github.com/jh125486/CSCE3550/releases
 Step 2: Download the correct version of your machine and extract it into the same directory of the main directory
 Execute the following command in your PowerShell terminal:
