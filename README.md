@@ -15,6 +15,7 @@ cd Simple-JWSK-server
 2. Create a Virtual Environment
 PowerShell
 python -m venv venv
+Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope Process
 .\venv\Scripts\activate
 3. Install Dependencies
 PowerShell
