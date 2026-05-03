@@ -1,3 +1,7 @@
+"""
+Main application module for the JWKS Server.
+Handles API routing, JWT generation, user registration, and authentication.
+"""
 import time
 import datetime
 import uuid
@@ -13,24 +17,44 @@ from collections import defaultdict
 app = Flask(__name__)
 ph = PasswordHasher()
 
-# Rate Limiter Setup
-RATE_LIMIT_WINDOW = 1.0
-MAX_REQUESTS = 10
-rate_limit_data = defaultdict(list)
+class RateLimiter:
+    """
+    A simple in-memory rate limiter to control request frequency.
+    """
+    def __init__(self, window: float = 1.0, max_requests: int = 10):
+        self.window = window
+        self.max_requests = max_requests
+        self.data = defaultdict(list)
 
-def is_rate_limited(ip):
-    current_time = time.time()
-    # Clean up timestamps older than 1 second
-    rate_limit_data[ip] = [t for t in rate_limit_data[ip] if current_time - t < RATE_LIMIT_WINDOW]
-    
-    if len(rate_limit_data[ip]) >= MAX_REQUESTS:
-        return True
+    def is_limited(self, ip: str) -> bool:
+        """
+        Checks if a request from the given IP exceeds the rate limit.
         
-    rate_limit_data[ip].append(current_time)
-    return False
+        Args:
+            ip (str): The IP address of the client.
+            
+        Returns:
+            bool: True if limited, False otherwise.
+        """
+        current_time = time.time()
+        self.data[ip] = [t for t in self.data[ip] if current_time - t < self.window]
+        
+        if len(self.data[ip]) >= self.max_requests:
+            return True
+            
+        self.data[ip].append(current_time)
+        return False
 
+# Instantiate the rate limiter instance
+limiter = RateLimiter()
 
-def generate_key_pair(expired=False):
+def generate_key_pair(expired: bool = False):
+    """
+    Generates an RSA key and saves it securely to the database.
+    
+    Args:
+        expired (bool): True to generate a key that is already expired.
+    """
     private_key = rsa.generate_private_key(
         public_exponent=65537,
         key_size=2048,
@@ -53,11 +77,17 @@ if database.is_db_empty():
 
 @app.route('/')
 def health_check():
-    # Basic health check endpoint
+    """Basic health check endpoint."""
     return "Server is running", 200
 
 @app.route('/register', methods=['POST'])
 def register():
+    """
+    Registers a new user with a generated UUID password hashed via Argon2.
+    
+    Returns:
+        Response: JSON containing the generated password or an error.
+    """
     data = request.get_json()
     if not data or 'username' not in data or 'email' not in data:
         return jsonify({"error": "Invalid request parameters"}), 400
@@ -65,9 +95,7 @@ def register():
     username = data['username']
     email = data['email']
     
-    # Generate secure UUIDv4 password
     password = str(uuid.uuid4())
-    # Hash password with Argon2
     password_hash = ph.hash(password)
 
     success = database.register_user(username, email, password_hash)
@@ -78,7 +106,12 @@ def register():
 @app.route('/.well-known/jwks.json', methods=['GET'])
 @app.route('/jwks', methods=['GET'])
 def jwks():
-    """JWKS endpoint to retrieve all valid public keys."""
+    """
+    JWKS endpoint to retrieve all valid public keys.
+    
+    Returns:
+        Response: JSON representation of the JWKS keys.
+    """
     current_time = int(time.time())
     rows = database.get_valid_keys_from_db(current_time)
 
@@ -98,13 +131,19 @@ def jwks():
 
 @app.route('/auth', methods=['POST'])
 def auth():
-    ip_address = request.remote_addr
+    """
+    Authentication endpoint that issues JWTs and logs requests.
+    
+    Returns:
+        Response: Encoded JWT or an error message.
+    """
+    ip_address = request.remote_addr or "127.0.0.1"
 
-    # Return 429 if too many requests)
-    if is_rate_limited(ip_address):
+    # 1. Rate Limiter execution
+    if limiter.is_limited(ip_address):
         return "Too Many Requests", 429
 
-    # Extract User details
+    # 2. Extract User details
     username = None
     if request.authorization:
         username = request.authorization.username
@@ -115,7 +154,7 @@ def auth():
     if username:
         user = database.get_user_by_username(username)
         if user:
-            user_id = user[0]  # The first element in the DB row is the ID
+            user_id = user[0]
 
     # 3. Log the successful request to the DB
     database.log_auth_request(ip_address, user_id)
@@ -128,6 +167,9 @@ def auth():
     if not row:
         generate_key_pair(expired=is_expired_requested)
         row = database.get_single_key_from_db(current_time, expired=is_expired_requested)
+
+    if not row:
+        return "Appropriate key not found in database", 500
 
     kid, key_pem, exp = row
     private_key = serialization.load_pem_private_key(key_pem, password=None, backend=default_backend())
